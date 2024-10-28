@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Trophy } from 'lucide-react';
 
 export default function Dashboard() {
-  const { players } = useGameStore();
+  const { players, loadPlayers } = useGameStore();
+
+  useEffect(() => {
+    loadPlayers();
+  }, [loadPlayers]);
   const sortedPlayers = [...players].sort((a, b) => b.elo - a.elo);
 
   return (

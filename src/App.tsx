@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Trophy as Basketball, MessageCircle, Trophy, UserCircle } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import NewGame from './pages/NewGame';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
+import { useGameStore } from './store/gameStore';
 
 function App() {
+  const { loadPlayers } = useGameStore();
+
+  useEffect(() => {
+    loadPlayers();
+  }, [loadPlayers]);
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50">

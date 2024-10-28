@@ -3,7 +3,20 @@ import { supabase } from '../lib/supabase';
 import { calculateEloChange, calculateTeamElo } from '../lib/elo';
 import type { Player } from '../lib/db';
 
+const setupPlayerSubscription = (loadPlayers: () => Promise<void>) => {
+  return supabase
+    .channel('players')
+    .on('postgres_changes', 
+      { event: '*', schema: 'public', table: 'players' },
+      () => {
+        loadPlayers();
+      }
+    )
+    .subscribe();
+};
+
 interface GameStore {
+  cleanup: () => void;
   players: Player[];
   addPlayer: (name: string, email: string) => Promise<void>;
   recordGame: (
@@ -16,7 +29,18 @@ interface GameStore {
   loadPlayers: () => Promise<void>;
 }
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  const subscription = setupPlayerSubscription(async () => {
+    const { loadPlayers } = get();
+    await loadPlayers();
+  });
+
+  const cleanup = () => {
+    subscription.unsubscribe();
+  };
+
+  return {
+    cleanup,
   players: [],
 
   loadPlayers: async () => {
@@ -142,4 +166,4 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     return player;
   },
-}));
+  });
