@@ -33,15 +33,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ players: players || [] });
   },
 
-  addPlayer: (name, email) => {
-    db.run(
-      'INSERT INTO players (name, email) VALUES (?, ?)',
-      [name, email]
-    );
-    get().loadPlayers();
+  addPlayer: async (name: string, email: string) => {
+    const { error } = await supabase
+      .from('players')
+      .insert([{ name, email }]);
+    
+    if (error) {
+      console.error('Error adding player:', error);
+      return;
+    }
+    
+    await get().loadPlayers();
   },
 
-  recordGame: (team1Players, team2Players, team1Score, team2Score) => {
+  recordGame: async (
+    team1Players: number[],
+    team2Players: number[],
+    team1Score: number,
+    team2Score: number
+  ) => {
     const players = get().players;
     const team1Elos = team1Players.map(
       (id) => players.find((p) => p.id === id)?.elo ?? 1500
@@ -59,62 +69,77 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isTeam1Winner ? team2Elo : team1Elo
     );
 
-    db.run('BEGIN TRANSACTION');
-    try {
-      // Insert game
-      db.run(
-        'INSERT INTO games (team_size, winner_score, loser_score) VALUES (?, ?, ?)',
-        [team1Players.length, Math.max(team1Score, team2Score), Math.min(team1Score, team2Score)]
-      );
-      
-      const gameId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+    // Insert game
+    const { data: game, error: gameError } = await supabase
+      .from('games')
+      .insert([{
+        team_size: team1Players.length,
+        winner_score: Math.max(team1Score, team2Score),
+        loser_score: Math.min(team1Score, team2Score)
+      }])
+      .select()
+      .single();
 
-      // Insert game players
-      for (const playerId of [...team1Players, ...team2Players]) {
-        const isWinner = isTeam1Winner
-          ? team1Players.includes(playerId)
-          : team2Players.includes(playerId);
-        db.run(
-          'INSERT INTO game_players (game_id, player_id, team, elo_change) VALUES (?, ?, ?, ?)',
-          [gameId, playerId, team1Players.includes(playerId) ? 'team1' : 'team2', isWinner ? eloChange : -eloChange]
-        );
-      }
-
-      // Update player ELOs
-      for (const playerId of team1Players) {
-        db.run(
-          'UPDATE players SET elo = elo + ?, games_played = games_played + 1 WHERE id = ?',
-          [isTeam1Winner ? eloChange : -eloChange, playerId]
-        );
-      }
-      for (const playerId of team2Players) {
-        db.run(
-          'UPDATE players SET elo = elo + ?, games_played = games_played + 1 WHERE id = ?',
-          [isTeam1Winner ? -eloChange : eloChange, playerId]
-        );
-      }
-
-      db.run('COMMIT');
-    } catch (error) {
-      db.run('ROLLBACK');
-      throw error;
+    if (gameError || !game) {
+      console.error('Error recording game:', gameError);
+      return;
     }
 
-    get().loadPlayers();
+    // Insert game players
+    const gamePlayers = [...team1Players, ...team2Players].map(playerId => ({
+      game_id: game.id,
+      player_id: playerId,
+      team: team1Players.includes(playerId) ? 'team1' : 'team2',
+      elo_change: (isTeam1Winner ? team1Players : team2Players).includes(playerId) 
+        ? eloChange 
+        : -eloChange
+    }));
+
+    const { error: playerError } = await supabase
+      .from('game_players')
+      .insert(gamePlayers);
+
+    if (playerError) {
+      console.error('Error recording game players:', playerError);
+      return;
+    }
+
+    // Update player ELOs
+    for (const playerId of team1Players) {
+      await supabase
+        .from('players')
+        .update({ 
+          elo: supabase.raw(`elo + ${isTeam1Winner ? eloChange : -eloChange}`),
+          games_played: supabase.raw('games_played + 1')
+        })
+        .eq('id', playerId);
+    }
+
+    for (const playerId of team2Players) {
+      await supabase
+        .from('players')
+        .update({ 
+          elo: supabase.raw(`elo + ${isTeam1Winner ? -eloChange : eloChange}`),
+          games_played: supabase.raw('games_played + 1')
+        })
+        .eq('id', playerId);
+    }
+
+    await get().loadPlayers();
   },
 
-  getPlayerStats: (playerId) => {
-    const result = db.exec('SELECT * FROM players WHERE id = ?', [playerId]);
-    if (result[0]?.values?.length) {
-      const row = result[0].values[0];
-      return {
-        id: row[0],
-        name: row[1],
-        email: row[2],
-        elo: row[3],
-        gamesPlayed: row[4]
-      };
+  getPlayerStats: async (playerId: number) => {
+    const { data: player, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('id', playerId)
+      .single();
+    
+    if (error) {
+      console.error('Error getting player stats:', error);
+      return undefined;
     }
-    return undefined;
+    
+    return player;
   },
 }));
