@@ -13,3 +13,15 @@ const MessageSchema: Schema = new Schema({
 });
 
 export default mongoose.model<IMessage>('Message', MessageSchema);
+import Player from './Player';
+
+interface Message {
+    id: string;
+    sender: Player;
+    recipient: Player;
+    content: string;
+    timestamp: Date;
+    read: boolean;
+}
+
+export default Message;

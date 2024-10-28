@@ -23,3 +23,15 @@ const PlayerSchema: Schema = new Schema({
 });
 
 export default mongoose.model<IPlayer>('Player', PlayerSchema);
+interface Player {
+    id: string;
+    username: string;
+    email: string;
+    eloRating: number;
+    gamesPlayed: number;
+    wins: number;
+    losses: number;
+    draws: number;
+}
+
+export default Player;

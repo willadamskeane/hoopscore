@@ -19,3 +19,21 @@ const GameSchema: Schema = new Schema({
 });
 
 export default mongoose.model<IGame>('Game', GameSchema);
+import Player from './Player';
+
+interface Game {
+    id: string;
+    whitePlayer: Player;
+    blackPlayer: Player;
+    pgn: string;  // Chess game moves in PGN notation
+    status: 'active' | 'completed' | 'abandoned';
+    winner?: Player;
+    startTime: Date;
+    endTime?: Date;
+    eloChange?: {
+        white: number;
+        black: number;
+    };
+}
+
+export default Game;
