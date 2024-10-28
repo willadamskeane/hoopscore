@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useMessageStore } from '../store/messageStore';
-import { useGameStore } from '../store/gameStore';
-import { Send, MessageCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import React, { useState, useEffect } from "react";
+import { useMessageStore } from "../store/messageStore";
+import { useGameStore } from "../store/gameStore";
+import { Send, MessageCircle } from "lucide-react";
+import { format } from "date-fns";
+import { supabase } from "../lib/supabase";
 
 export default function Messages() {
   const { messages, sendMessage, initialize, loadMessages } = useMessageStore();
   const { players } = useGameStore();
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
 
   useEffect(() => {
@@ -16,9 +17,10 @@ export default function Messages() {
 
   useEffect(() => {
     const subscription = supabase
-      .channel('messages')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'messages' },
+      .channel("messages")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
         () => {
           loadMessages();
         }
@@ -34,7 +36,7 @@ export default function Messages() {
     e.preventDefault();
     if (selectedPlayer && newMessage.trim()) {
       sendMessage(selectedPlayer, newMessage.trim());
-      setNewMessage('');
+      setNewMessage("");
     }
   };
 
@@ -51,10 +53,7 @@ export default function Messages() {
             {messages.map((message) => {
               const sender = players.find((p) => p.id === message.senderId);
               return (
-                <div
-                  key={message.id}
-                  className="flex items-start space-x-3"
-                >
+                <div key={message.id} className="flex items-start space-x-3">
                   <div className="flex-1">
                     <div className="bg-gray-50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-1">
@@ -63,8 +62,8 @@ export default function Messages() {
                         </span>
                         <span className="text-xs text-gray-500">
                           {format(
-                            new Date(message.createdAt),
-                            'MMM d, h:mm a'
+                            new Date(message.created_at),
+                            "MMM d, h:mm a"
                           )}
                         </span>
                       </div>
@@ -78,7 +77,7 @@ export default function Messages() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <select
-              value={selectedPlayer || ''}
+              value={selectedPlayer || ""}
               onChange={(e) =>
                 setSelectedPlayer(
                   e.target.value ? parseInt(e.target.value) : null

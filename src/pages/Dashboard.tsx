@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { useGameStore } from '../store/gameStore';
-import { Trophy } from 'lucide-react';
+import React, { useEffect } from "react";
+import { useGameStore } from "../store/gameStore";
+import { Trophy } from "lucide-react";
 
 export default function Dashboard() {
   const { players, loadPlayers } = useGameStore();

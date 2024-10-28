@@ -1,13 +1,14 @@
-import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
-import { calculateEloChange, calculateTeamElo } from '../lib/elo';
-import type { Player } from '../lib/db';
+import { create } from "zustand";
+import { supabase } from "../lib/supabase";
+import { calculateEloChange, calculateTeamElo } from "../lib/elo";
+import type { Player } from "../lib/db";
 
 const setupPlayerSubscription = (loadPlayers: () => Promise<void>) => {
   return supabase
-    .channel('players')
-    .on('postgres_changes', 
-      { event: '*', schema: 'public', table: 'players' },
+    .channel("players")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "players" },
       () => {
         loadPlayers();
       }
@@ -41,129 +42,140 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   return {
     cleanup,
-  players: [],
+    players: [],
 
-  loadPlayers: async () => {
-    const { data: players, error } = await supabase
-      .from('players')
-      .select('*')
-      .order('elo', { ascending: false });
-    
-    if (error) {
-      console.error('Error loading players:', error);
-      return;
-    }
-    
-    set({ players: players || [] });
-  },
+    loadPlayers: async () => {
+      const { data: players, error } = await supabase
+        .from("players")
+        .select("*")
+        .order("elo", { ascending: false });
 
-  addPlayer: async (name: string, email: string) => {
-    const { error } = await supabase
-      .from('players')
-      .insert([{ name, email }]);
-    
-    if (error) {
-      console.error('Error adding player:', error);
-      return;
-    }
-    
-    await get().loadPlayers();
-  },
+      if (error) {
+        console.error("Error loading players:", error);
+        return;
+      }
 
-  recordGame: async (
-    team1Players: number[],
-    team2Players: number[],
-    team1Score: number,
-    team2Score: number
-  ) => {
-    const players = get().players;
-    const team1Elos = team1Players.map(
-      (id) => players.find((p) => p.id === id)?.elo ?? 1500
-    );
-    const team2Elos = team2Players.map(
-      (id) => players.find((p) => p.id === id)?.elo ?? 1500
-    );
+      set({ players: players || [] });
+    },
 
-    const team1Elo = calculateTeamElo(team1Elos);
-    const team2Elo = calculateTeamElo(team2Elos);
+    addPlayer: async (name: string, email: string) => {
+      const { error } = await supabase
+        .from("players")
+        .insert([{ name, email }]);
 
-    const isTeam1Winner = team1Score > team2Score;
-    const eloChange = calculateEloChange(
-      isTeam1Winner ? team1Elo : team2Elo,
-      isTeam1Winner ? team2Elo : team1Elo
-    );
+      if (error) {
+        console.error("Error adding player:", error);
+        return;
+      }
 
-    // Insert game
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .insert([{
-        team_size: team1Players.length,
-        winner_score: Math.max(team1Score, team2Score),
-        loser_score: Math.min(team1Score, team2Score)
-      }])
-      .select()
-      .single();
+      await get().loadPlayers();
+    },
 
-    if (gameError || !game) {
-      console.error('Error recording game:', gameError);
-      return;
-    }
+    recordGame: async (
+      team1Players: number[],
+      team2Players: number[],
+      team1Score: number,
+      team2Score: number
+    ) => {
+      const players = get().players;
+      const team1Elos = team1Players.map(
+        (id) => players.find((p) => p.id === id)?.elo ?? 1500
+      );
+      const team2Elos = team2Players.map(
+        (id) => players.find((p) => p.id === id)?.elo ?? 1500
+      );
 
-    // Insert game players
-    const gamePlayers = [...team1Players, ...team2Players].map(playerId => ({
-      game_id: game.id,
-      player_id: playerId,
-      team: team1Players.includes(playerId) ? 'team1' : 'team2',
-      elo_change: (isTeam1Winner ? team1Players : team2Players).includes(playerId) 
-        ? eloChange 
-        : -eloChange
-    }));
+      const team1Elo = calculateTeamElo(team1Elos);
+      const team2Elo = calculateTeamElo(team2Elos);
 
-    const { error: playerError } = await supabase
-      .from('game_players')
-      .insert(gamePlayers);
+      const isTeam1Winner = team1Score > team2Score;
+      const eloChange = calculateEloChange(
+        isTeam1Winner ? team1Elo : team2Elo,
+        isTeam1Winner ? team2Elo : team1Elo
+      );
 
-    if (playerError) {
-      console.error('Error recording game players:', playerError);
-      return;
-    }
+      // Insert game
+      const { data: game, error: gameError } = await supabase
+        .from("games")
+        .insert([
+          {
+            team_size: team1Players.length,
+            winner_score: Math.max(team1Score, team2Score),
+            loser_score: Math.min(team1Score, team2Score),
+          },
+        ])
+        .select()
+        .single();
 
-    // Update player ELOs
-    for (const playerId of team1Players) {
-      await supabase
-        .from('players')
-        .update({ 
-          elo: supabase.raw(`elo + ${isTeam1Winner ? eloChange : -eloChange}`),
-          games_played: supabase.raw('games_played + 1')
+      if (gameError || !game) {
+        console.error("Error recording game:", gameError);
+        return;
+      }
+
+      // Insert game players
+      const gamePlayers = [...team1Players, ...team2Players].map(
+        (playerId) => ({
+          game_id: game.id,
+          player_id: playerId,
+          team: team1Players.includes(playerId) ? "team1" : "team2",
+          elo_change: (isTeam1Winner ? team1Players : team2Players).includes(
+            playerId
+          )
+            ? eloChange
+            : -eloChange,
         })
-        .eq('id', playerId);
-    }
+      );
 
-    for (const playerId of team2Players) {
-      await supabase
-        .from('players')
-        .update({ 
-          elo: supabase.raw(`elo + ${isTeam1Winner ? -eloChange : eloChange}`),
-          games_played: supabase.raw('games_played + 1')
-        })
-        .eq('id', playerId);
-    }
+      const { error: playerError } = await supabase
+        .from("game_players")
+        .insert(gamePlayers);
 
-    await get().loadPlayers();
-  },
+      if (playerError) {
+        console.error("Error recording game players:", playerError);
+        return;
+      }
 
-  getPlayerStats: async (playerId: number) => {
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('id', playerId)
-      .single();
-    
-    if (error) {
-      console.error('Error getting player stats:', error);
-      return undefined;
-    }
-    
-    return player;
-  },
-  });
+      // Update player ELOs
+      for (const playerId of team1Players) {
+        await supabase
+          .from("players")
+          .update({
+            elo: supabase.raw(
+              `elo + ${isTeam1Winner ? eloChange : -eloChange}`
+            ),
+            games_played: supabase.raw("games_played + 1"),
+          })
+          .eq("id", playerId);
+      }
+
+      for (const playerId of team2Players) {
+        await supabase
+          .from("players")
+          .update({
+            elo: supabase.raw(
+              `elo + ${isTeam1Winner ? -eloChange : eloChange}`
+            ),
+            games_played: supabase.raw("games_played + 1"),
+          })
+          .eq("id", playerId);
+      }
+
+      await get().loadPlayers();
+    },
+
+    getPlayerStats: async (playerId: number) => {
+      const { data: player, error } = await supabase
+        .from("players")
+        .select("*")
+        .eq("id", playerId)
+        .single();
+
+      if (error) {
+        console.error("Error getting player stats:", error);
+        return undefined;
+      }
+
+      return player;
+    },
+  };
+});
