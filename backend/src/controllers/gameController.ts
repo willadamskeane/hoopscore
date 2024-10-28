@@ -3,6 +3,43 @@ import Game, { IGame } from '../models/Game';
 import Player, { IPlayer } from '../models/Player';
 import { calculateNewElos, TeamEloResult } from '../utils/eloCalculator';
 
+export const getGamesByPlayerId = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const playerId = req.params.playerId;
+    const games = await Game.find({
+      $or: [
+        { team1: playerId },
+        { team2: playerId }
+      ]
+    })
+    .populate('team1', 'username')
+    .populate('team2', 'username')
+    .sort({ date: -1 });
+
+    // Add player-specific context to each game
+    const gamesWithContext = games.map(game => {
+      const isTeam1 = game.team1.some(p => p._id.toString() === playerId);
+      const playerTeamScore = isTeam1 ? game.team1Score : game.team2Score;
+      const opposingTeamScore = isTeam1 ? game.team2Score : game.team1Score;
+      const eloChange = game.eloChanges.find(
+        change => change.playerId.toString() === playerId
+      )?.change || 0;
+
+      return {
+        ...game.toObject(),
+        playerTeamScore,
+        opposingTeamScore,
+        eloChange,
+        result: playerTeamScore > opposingTeamScore ? 'WIN' : 'LOSS'
+      };
+    });
+
+    res.status(200).json(gamesWithContext);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching player games', error });
+  }
+};
+
 export const submitGame = async (req: Request, res: Response): Promise<void> => {
   try {
     const { team1PlayerIds, team2PlayerIds, team1Score, team2Score } = req.body;

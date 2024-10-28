@@ -1,8 +1,13 @@
 import React from 'react';
 import { GameSubmissionForm } from '../components/GameSubmissionForm';
 import { Leaderboard } from '../components/Leaderboard';
+import { GameHistory } from '../components/GameHistory';
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  userId: string;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ userId }) => {
   const handleGameSubmit = () => {
     window.location.reload();
   };
@@ -12,6 +17,7 @@ export const Dashboard: React.FC = () => {
       <h1>Basketball ELO Rankings</h1>
       <GameSubmissionForm onGameSubmit={handleGameSubmit} />
       <Leaderboard />
+      <GameHistory playerId={userId} />
     </div>
   );
 };
