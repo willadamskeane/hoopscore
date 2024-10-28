@@ -1,41 +1,36 @@
 import { create } from 'zustand';
-import { db } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import { calculateEloChange, calculateTeamElo } from '../lib/elo';
-
-interface Player {
-  id: number;
-  name: string;
-  email: string;
-  elo: number;
-  gamesPlayed: number;
-}
+import type { Player } from '../lib/db';
 
 interface GameStore {
   players: Player[];
-  addPlayer: (name: string, email: string) => void;
+  addPlayer: (name: string, email: string) => Promise<void>;
   recordGame: (
     team1Players: number[],
     team2Players: number[],
     team1Score: number,
     team2Score: number
-  ) => void;
-  getPlayerStats: (playerId: number) => Player | undefined;
-  loadPlayers: () => void;
+  ) => Promise<void>;
+  getPlayerStats: (playerId: number) => Promise<Player | undefined>;
+  loadPlayers: () => Promise<void>;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
   players: [],
 
-  loadPlayers: () => {
-    const result = db.exec('SELECT * FROM players');
-    const players = result[0]?.values.map(row => ({
-      id: row[0],
-      name: row[1],
-      email: row[2],
-      elo: row[3],
-      gamesPlayed: row[4]
-    })) || [];
-    set({ players });
+  loadPlayers: async () => {
+    const { data: players, error } = await supabase
+      .from('players')
+      .select('*')
+      .order('elo', { ascending: false });
+    
+    if (error) {
+      console.error('Error loading players:', error);
+      return;
+    }
+    
+    set({ players: players || [] });
   },
 
   addPlayer: (name, email) => {
