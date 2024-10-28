@@ -5,14 +5,30 @@ import { Send, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Messages() {
-  const { messages, sendMessage, loadMessages } = useMessageStore();
+  const { messages, sendMessage, initialize, loadMessages } = useMessageStore();
   const { players } = useGameStore();
   const [newMessage, setNewMessage] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
 
   useEffect(() => {
-    loadMessages();
-  }, []);
+    initialize();
+  }, [initialize]);
+
+  useEffect(() => {
+    const subscription = supabase
+      .channel('messages')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'messages' },
+        () => {
+          loadMessages();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadMessages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

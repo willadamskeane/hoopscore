@@ -6,20 +6,26 @@ interface MessageStore {
   messages: Message[];
   sendMessage: (senderId: number, content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
+  initialized: boolean;
+  initialize: () => Promise<void>;
 }
 
-export const useMessageStore = create<MessageStore>((set) => ({
+export const useMessageStore = create<MessageStore>((set, get) => ({
+  initialized: false,
   messages: [],
+
+  initialize: async () => {
+    if (!get().initialized) {
+      await get().loadMessages();
+      set({ initialized: true });
+    }
+  },
 
   loadMessages: async () => {
     const { data: messages, error } = await supabase
       .from('messages')
-      .select(`
-        *,
-        sender:sender_id(name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .select('*')
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('Error loading messages:', error);
