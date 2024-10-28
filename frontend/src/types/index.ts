@@ -8,16 +8,6 @@ export interface IPlayer {
   losses: number;
   draws: number;
 }
-export interface IPlayer {
-  _id: string;
-  username: string;
-  email: string;
-  eloRating: number;
-  gamesPlayed: number;
-  wins: number;
-  losses: number;
-  draws: number;
-}
 
 export interface IGame {
   _id: string;
